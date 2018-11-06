@@ -16,7 +16,7 @@ def pad_tensor(vec, pad, dim):
         a new tensor padded to 'pad' in dimension 'dim'
     """
     pad_size = list(vec.shape)
-    pad_size[dim] = pad - vec.shape[dim]
+    pad_size[dim] = max(0, pad - vec.shape[dim])
     return torch.cat([vec, torch.zeros(*pad_size)], dim=dim)
 
 def pad_collate(batch):

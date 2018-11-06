@@ -42,6 +42,7 @@ parser.add_argument('--epochs', type=int, default=100, help='epochs')
 parser.add_argument('--num_classes', type=int, default=2, help='number of classes')
 parser.add_argument('--exp_name', type=str, help='experiment name')
 parser.add_argument('--opt', type=str, default='sgd', help='optimizer')
+parser.add_argument('--features', type=str, default='world', choices=['world','mel'])
 parser.add_argument('--load_ckpt', type=str, default=None, help='load checkpoint location')
 parser.add_argument('--save_ckpt', type=str, default=None, help='save checkpoint location')
 parser.add_argument('--generate', default=False, action='store_true', help='generate example')
@@ -83,22 +84,25 @@ else:
     mean = np.load(mean_path)
     std = np.load(std_path)
 
-###### PRE-PROCESS DATA ######
-trans = transforms.Compose([
-    transforms.Lambda(lambda x: replace_mask(x, x == -10000000000.0, 0)),
-    #transforms.Lambda(lambda x: (x-mean)/std),  # normalize
-    transforms.Lambda(lambda x: (x-min)/(max-min)),  # normalize
-    transforms.Lambda(lambda x: np.concatenate((x, np.zeros((x.shape[0],1)).astype(np.float32)), axis=1)),  # add 64th feature (0)
-    transforms.Lambda(lambda x: torch.from_numpy(x)),  # convert to tensor
-    #transforms.Lambda(lambda x: pad_tensor(x, 256, 0)[:256, :]),  # pad and trim to 256 frames
-    transforms.Lambda(lambda x: x.unsqueeze(0)),  # add channel dim
-])
-allsstar_ds = AllsstarLoader(allsstar_index_file, transform=trans, shuffle=False)
-train, val = split_dataset(allsstar_ds)
-train_loader = DataLoader(train, batch_size=args.batch_size, num_workers=16)#, collate_fn=pad_collate)
-val_loader = DataLoader(val, batch_size=args.batch_size, num_workers=16)#, collate_fn=pad_collate)
+    ###### PRE-PROCESS DATA ######
+    trans = transforms.Compose([
+        transforms.Lambda(lambda x: replace_mask(x, x == -10000000000.0, 0)),
+        transforms.Lambda(lambda x: (x-mean)/std),  # normalize
+        #transforms.Lambda(lambda x: (x-min)/(max-min)),  # normalize
+        transforms.Lambda(lambda x: np.concatenate((x, np.zeros((x.shape[0],1)).astype(np.float32)), axis=1)),  # add 64th feature (0)
+        transforms.Lambda(lambda x: torch.from_numpy(x)),  # convert to tensor
+        transforms.Lambda(lambda x: x.float()),  # convert to tensor
+        transforms.Lambda(lambda x: pad_tensor(x, 256, 0)[:256, :]),  # pad and trim to 256 frames
+        transforms.Lambda(lambda x: x.unsqueeze(0)),  # add channel dim
+    ])
 
-#G = Generator(c_dim=args.num_classes).to('cuda')
+    allsstar_ds = AllsstarLoader(allsstar_index_file, transform=trans)
+    allsstar_loader = DataLoader(allsstar_ds, batch_size=args.batch_size, num_workers=0)
+
+train, val = split_dataset(allsstar_ds)
+train_loader = DataLoader(train, batch_size=args.batch_size, num_workers=0)
+val_loader = DataLoader(val, batch_size=args.batch_size, num_workers=0)
+
 G = NoCompressGenerator32(c_dim=args.num_classes).to('cuda')
 print(G)
 if args.load_ckpt:

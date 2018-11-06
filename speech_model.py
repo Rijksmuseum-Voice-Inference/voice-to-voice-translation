@@ -90,44 +90,6 @@ class NoCompressGenerator32(nn.Module):
         x = self.l4(x)
         return x
 
-class NoCompressGenerator(nn.Module):
-    """Generator network."""
-    def __init__(self, c_dim):
-        super(NoCompressGenerator, self).__init__()
-        encoder = []
-        decoder = []
-
-        # my dims (reduces length dim by 2, keeps features dim until last conv, like in StarGAN-VC)
-        #encoder.append(GatedBlock(1, 32, kernel_size=(9,3), stride=(1,1), padding=(4,1)))
-        #encoder.append(GatedBlock(32, 64, kernel_size=(8,4), stride=(2,2), padding=(3,1)))
-        #encoder.append(GatedBlock(64, 128, kernel_size=(8,4), stride=(2,2), padding=(3,1)))
-        #encoder.append(GatedBlock(128, 8, kernel_size=(5,3), stride=(1,1), padding=(2,1)))
-
-        #decoder.append(GatedBlock(8 + c_dim, 128, kernel_size=(5,3), stride=(1,1), padding=(2,1), deconv=True))
-        #decoder.append(GatedBlock(128, 64, kernel_size=(8,4), stride=(2,2), padding=(3,1), deconv=True))
-        #decoder.append(GatedBlock(64, 32, kernel_size=(8,4), stride=(2,2), padding=(3,1), deconv=True))
-        #decoder.append(nn.ConvTranspose2d(32, 1, kernel_size=(9,3), stride=(1,1), padding=(4,1)))
-
-        # my dims (reduces length dim by 2, keeps features dim until last conv, like in StarGAN-VC)
-        encoder.append(GatedBlock(1, 32, kernel_size=(9,3), stride=(1,1), padding=(4,1)))
-        encoder.append(GatedBlock(32, 64, kernel_size=(8,4), stride=(2,2), padding=(3,1)))
-        encoder.append(GatedBlock(64, 128, kernel_size=(8,3), stride=(2,1), padding=(3,1)))
-        encoder.append(GatedBlock(128, 8, kernel_size=(5,3), stride=(1,1), padding=(2,1)))
-
-        decoder.append(GatedBlock(8 + c_dim, 128, kernel_size=(5,3), stride=(1,1), padding=(2,1), deconv=True))
-        decoder.append(GatedBlock(128, 64, kernel_size=(8,3), stride=(2,1), padding=(3,1), deconv=True))
-        decoder.append(GatedBlock(64, 32, kernel_size=(8,4), stride=(2,2), padding=(3,1), deconv=True))
-        decoder.append(nn.ConvTranspose2d(32, 1, kernel_size=(9,3), stride=(1,1), padding=(4,1)))
-
-        self.encoder = nn.Sequential(*encoder)
-        self.decoder = nn.Sequential(*decoder)
-
-    def forward(self, x, c):
-        x = self.encoder(x)
-        x = concat_x_c(x, c)
-        x = self.decoder(x)
-        return x
-
 class Generator(nn.Module):
     """Generator network."""
     def __init__(self, c_dim):
@@ -165,7 +127,7 @@ class Discriminator(nn.Module):
         self.l2 = GatedBlock(32 + c_dim, 32, kernel_size=(8,3), stride=(2,1), padding=(3,1))
         self.l3 = GatedBlock(32 + c_dim, 32, kernel_size=(8,3), stride=(2,1), padding=(3,1))
         self.l4 = GatedBlock(32 + c_dim, 32, kernel_size=(6,3), stride=(2,1), padding=(2,1))
-        self.l5 = nn.Conv2d(32 + c_dim, 1, kernel_size=(5,64), stride=(1,64), padding=(2,0), bias=False)
+        self.l5 = nn.Conv2d(32 + c_dim, 1, kernel_size=(5,40), stride=(1,40), padding=(2,0), bias=False)
 
     def forward(self, x, c):
         x = concat_x_c(x, c)
@@ -189,21 +151,11 @@ class Classifier(nn.Module):
         super(Classifier, self).__init__()
         layers = []
 
-        #layers.append(GatedBlock(1, 8, kernel_size=(4,4), stride=(2,2), padding=(1,1)))
-        #layers.append(nn.Dropout2d(dropout))
-        #layers.append(GatedBlock(8, 16, kernel_size=(4,4), stride=(2,2), padding=(1,1)))
-        #layers.append(nn.Dropout2d(dropout))
-        #layers.append(GatedBlock(16, 32, kernel_size=(4,4), stride=(2,2), padding=(1,1)))
-        #layers.append(nn.Dropout2d(dropout))
-        #layers.append(GatedBlock(32, 16, kernel_size=(4,3), stride=(2,1), padding=(1,0)))
-        #layers.append(nn.Dropout2d(dropout))
-        #layers.append(nn.Conv2d(16, c_dim, kernel_size=(3,6), stride=(2,1), padding=(1,0), bias=False))
-
         layers.append(GatedBlock(1, 8, kernel_size=(4,6), stride=(2,4), padding=(1,1)))
         layers.append(nn.Dropout2d(dropout))
-        layers.append(GatedBlock(8, 8, kernel_size=(4,6), stride=(2,4), padding=(1,1)))
+        layers.append(GatedBlock(8, 8, kernel_size=(4,6), stride=(2,2), padding=(1,1)))
         layers.append(nn.Dropout2d(dropout))
-        layers.append(nn.Conv2d(8, c_dim, kernel_size=(3,6), stride=(2,4), padding=(1,1), bias=False))
+        layers.append(nn.Conv2d(8, c_dim, kernel_size=(3,5), stride=(2,5), padding=(1,1), bias=False))
 
         self.layers = nn.Sequential(*layers)
 

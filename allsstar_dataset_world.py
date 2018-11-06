@@ -49,7 +49,46 @@ def find_classes(index_file):
     class_to_idx = {classes[i]: i for i in range(len(classes))}
     return classes, class_to_idx
 
-def make_dataset(index_file, max_occurances_per_attribute=4000):
+def make_dataset(index_file, max_occurances_per_attribute=4000, features="world"):
+    spects = []
+
+    allowed_labels = ["ENG", "CMN"]
+    class_to_idx = {"M": 0, "F": 1}
+    attribute_counter = defaultdict(int)
+    files = open(index_file, 'r').readlines()
+
+    for file in files[1:]:
+        file = file.strip()
+        file_split = file.split('\t')
+        file_path = file_split[0]
+        gender = file_split[2]
+        orig_lang = file_split[3]
+        task_lang = file_split[4]
+        sub_take = file_split[7]
+
+        f0_file = file_path.replace("/mgc/", "/lf0/").replace(".mgc", ".lf0")
+        bap_file = file_path.replace("/mgc/", "/bap/").replace(".mgc", ".bap")
+
+        if not task_lang == 'ENG':
+            continue
+        if sub_take == '-1':
+            continue
+        if not orig_lang in allowed_labels:
+           continue
+        if attribute_counter[orig_lang] >= max_occurances_per_attribute:
+           continue
+
+        attribute_counter[orig_lang] += 1
+        if features == "world":
+            spects.append((file_path, f0_file, bap_file, class_to_idx[gender]))
+        elif features == "mel":
+            spects.append((file_path, class_to_idx[gender]))
+        #spects.append((file_path, f0_file, bap_file, allowed_labels.index(orig_lang)))
+
+    #class_to_idx = {label:allowed_labels.index(label) for label in allowed_labels}
+    return spects, class_to_idx
+
+def make_dataset1(index_file, max_occurances_per_attribute=4000):
     spects = []
 
     allowed_labels = ["ENG", "CMN"]
@@ -94,6 +133,26 @@ def world_loader(mgc_file, f0_file, bap_file):
     features = np.concatenate((mgc, f0, bap), axis=1)
 
     return features
+
+def mel_log_spec_loader(path, normalize=True):
+    y, sr = librosa.load(path, sr=None)
+    # n_fft = 4096
+    n_fft = 512
+    win_length = 512
+    hop_length = 256
+
+    # STFT
+    D = librosa.feature.melspectrogram(y, sr=sr, n_mels=40)
+    D = np.log1p(D)
+
+    # z-score normalization
+    if normalize:
+        mean = D.mean()
+        D -= mean
+
+    D = np.transpose(D)
+
+    return D
 
 def spect_loader(path, window_size, window_stride, window, normalize, max_len=101):
     y, sr = librosa.load(path, sr=None)
@@ -151,8 +210,8 @@ class AllsstarLoader(data.Dataset):
     """
 
     def __init__(self, index_file, transform=None, target_transform=None, window_size=.02,
-                 window_stride=.01, window_type='hamming', normalize=True, max_len=101, shuffle=False):
-        spects, class_to_idx = make_dataset(index_file)
+                 window_stride=.01, window_type='hamming', normalize=True, max_len=101, shuffle=False, features="world"):
+        spects, class_to_idx = make_dataset(index_file, features=features)
         if len(spects) == 0:
             raise (RuntimeError("Found 0 sound files in subfolders of: " + index_file + "Supported audio file extensions are: " + ",".join(AUDIO_EXTENSIONS)))
 
@@ -165,7 +224,11 @@ class AllsstarLoader(data.Dataset):
         self.idx_to_class = {v:k for k,v in class_to_idx.items()}
         self.transform = transform
         self.target_transform = target_transform
-        self.loader = world_loader  # spect_loader
+        self.features = features
+        if features == "world":
+            self.loader = world_loader
+        elif features == "mel":
+            self.loader = mel_log_spec_loader
         self.window_size = window_size
         self.window_stride = window_stride
         self.window_type = window_type
@@ -180,18 +243,22 @@ class AllsstarLoader(data.Dataset):
         Returns:
             tuple: (spect, target) where target is class_index of the target class.
         """
-        mgc_file, f0_file, bap_file, target = self.spects[index]
-        try:
-            spect = self.loader(mgc_file, f0_file, bap_file)
-        except Exception as e:
-            #print("bad")
-            self.bad_files += 1
-            self.spects.pop(index)  # remove bad file
-            return self.__getitem__(index)  # return next file instead (technically, this is still the "same" index)
+        if self.features == "world":
+            mgc_file, f0_file, bap_file, target = self.spects[index]
+            try:
+                spect = self.loader(mgc_file, f0_file, bap_file)
+            except Exception as e:
+                print(e)
+                self.bad_files += 1
+                self.spects.pop(index)  # remove bad file
+                return self.__getitem__(index)  # return next file instead (technically, this is still the "same" index)
+
+        elif self.features == "mel":
+            wav_file, target = self.spects[index]
+            spect = self.loader(wav_file)
+
         if self.transform is not None:
             spect = self.transform(spect)
-        if self.target_transform is not None:
-            target = self.target_transform(target)
 
         return spect, target
 
