@@ -89,7 +89,7 @@ class Solver(object):
 
     def build_model(self):
         """Create a generator and a discriminator."""
-        #self.asr_D = load_asr_mlp(input_dim=40*11, output_dim=138, state_file_path=self.asr_save_dir)
+        self.asr_D = load_asr_mlp(input_dim=40*11, output_dim=138, state_file_path=self.asr_save_dir)
         self.G = Generator(num_speakers=self.c_dim, repeat_num=self.g_repeat_num)
         self.D = Discriminator(input_size=(self.d_subset_features,self.seq_length), num_speakers=self.c_dim, repeat_num=self.d_repeat_num, conv_dim=16)
 
@@ -101,7 +101,7 @@ class Solver(object):
 
         self.G.to(self.device)
         self.D.to(self.device)
-        #self.asr_D.to(self.device)
+        self.asr_D.to(self.device)
 
     def print_network(self, model, name):
         """Print out the network information."""
@@ -323,18 +323,18 @@ class Solver(object):
                 g_loss_rec = torch.mean(torch.abs(x_real - x_reconst))
 
                 # ASR discrimnator
-                #windows_real = torch.split(x_real.squeeze(1).view(-1, 40), 11)
-                #windows_real = [x.view(-1) for x in windows_real][:-1]
-                #windows_real = torch.stack(windows_real, 0)
+                windows_real = torch.split(x_real.squeeze(1).view(-1, 40), 11)
+                windows_real = [x.view(-1) for x in windows_real][:-1]
+                windows_real = torch.stack(windows_real, 0)
 
-                #windows_fake = torch.split(x_fake.squeeze(1).view(-1, 40), 11)
-                #windows_fake = [x.view(-1) for x in windows_fake][:-1]
-                #windows_fake = torch.stack(windows_fake, 0)
+                windows_fake = torch.split(x_fake.squeeze(1).view(-1, 40), 11)
+                windows_fake = [x.view(-1) for x in windows_fake][:-1]
+                windows_fake = torch.stack(windows_fake, 0)
 
-                #real_phoneme_probs = F.log_softmax(self.asr_D(windows_real))
-                #fake_phoneme_probs = F.softmax(self.asr_D(windows_fake))
+                real_phoneme_probs = F.log_softmax(self.asr_D(windows_real))
+                fake_phoneme_probs = F.softmax(self.asr_D(windows_fake))
 
-                #kl_div_loss = torch.nn.KLDivLoss(size_average=False)(real_phoneme_probs, fake_phoneme_probs)
+                kl_div_loss = torch.nn.KLDivLoss(size_average=False)(real_phoneme_probs, fake_phoneme_probs)
 
                 # added identity loss also
                 #x_id = self.G(x_real, c_org)
